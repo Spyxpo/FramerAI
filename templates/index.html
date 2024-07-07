@@ -26,11 +26,15 @@
             </button>
         </div>
         <div class="chat-box" id="chat-box">
+            <div id="image-display"></div>
         </div>
         <div class="input-box">
             <input type="text" id="user-input" placeholder="Ask anything...">
             <button id="action-button" onclick="sendMessage()"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
+    </div>
+    <div id="loading-indicator" class="loading-indicator" style="display: none;">
+        <div class="spinner"></div>
     </div>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>

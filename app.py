@@ -3,6 +3,7 @@ from flask import (
     request,
     jsonify,
     render_template,
+    url_for,
 )
 from transformers import (
     AutoModelForCausalLM,
@@ -50,12 +51,13 @@ def generate_image(prompt):
     global ai_processing
     ai_processing = True
 
-    image_path = f"static/{secure_filename(prompt)}.png"
+    image_filename = f"{secure_filename(prompt)}.png"
+    image_path = os.path.join("static", image_filename)
     image = image_pipe(prompt).images[0]
     image.save(image_path)
 
     ai_processing = False
-    return image_path
+    return image_filename
 
 
 def generate_chat_response(prompt, chat_history_ids=None):
@@ -101,13 +103,12 @@ def handle_message():
 
     if intent == "generate image":
         prompt = user_input.lower().replace("generate image", "").strip()
-        logging.debug(f"Image generation prompt: {prompt}")
         if prompt:
-            image_path = generate_image(prompt)
-            logging.debug(f"Generated image path: {image_path}")
+            image_filename = generate_image(prompt)
+            image_url = url_for("static", filename=image_filename)
             return jsonify(
                 {
-                    "response": f"Generated an image based on your prompt. <a href='/{image_path}' target='_blank'>View Image</a>"
+                    "response": f"Generated an image based on your prompt. <img src='{image_url}' alt='Generated Image' style='max-width: 100%;'>"
                 }
             )
         else:
@@ -132,16 +133,18 @@ def stop():
 
 def classify_intent(user_input):
     user_input = user_input.lower().strip()
+    if "generate image" in user_input:
+        return "generate image"
+    elif user_input.startswith("chat"):
+        return "chat"
+
     inputs = intent_tokenizer(
         user_input, return_tensors="pt", padding=True, truncation=True, max_length=512
     ).to(device)
     outputs = intent_model(**inputs)
     predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    logging.debug(f"Model predictions: {predictions}")
     intent_idx = torch.argmax(predictions, dim=-1).item()
-    logging.debug(f"Predicted intent index: {intent_idx}")
     intent = encoder.inverse_transform([intent_idx])[0]
-    logging.debug(f"Decoded intent: {intent}")
     return intent
 
 
