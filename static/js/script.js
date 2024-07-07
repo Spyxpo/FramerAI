@@ -1,22 +1,33 @@
 let chatHistories = JSON.parse(localStorage.getItem('chatHistories')) || [];
 let currentChat = JSON.parse(localStorage.getItem('currentChat')) || [];
+let aiThinking = false;
+let abortController = null;
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('open');
+    if (sidebar.classList.contains('open')) {
+        setTimeout(() => {
+            sidebar.style.visibility = 'visible';
+        }, 300); 
+    } else {
+        setTimeout(() => {
+            sidebar.style.visibility = 'hidden';
+        }, 300); 
+    }
 }
 
 function newChat() {
     saveCurrentChat();
     document.getElementById('chat-box').innerHTML = '';
     currentChat = [];
-    saveCurrentChat(); 
+    localStorage.setItem('currentChat', JSON.stringify(currentChat)); 
 }
 
 function saveCurrentChat() {
     if (currentChat.length > 0) {
         chatHistories.push(currentChat);
         localStorage.setItem('chatHistories', JSON.stringify(chatHistories));
-        localStorage.setItem('currentChat', JSON.stringify(currentChat));
         displayChatHistory();
     }
 }
@@ -54,7 +65,6 @@ function loadChat(index) {
     currentChat = chat;
     localStorage.setItem('currentChat', JSON.stringify(currentChat));
 
-    
     const historyMessages = document.querySelectorAll('.history-message');
     historyMessages.forEach((msg, i) => {
         if (i === index) {
@@ -72,21 +82,22 @@ function deleteChat(index) {
 }
 
 async function sendMessage() {
-    const userInput = document.getElementById('user-input').value;
+    const userInput = document.getElementById('user-input').value.trim();
+    if (userInput === '') {
+        alert('Please enter a valid message.');
+        return;
+    }
     document.getElementById('user-input').value = '';
 
-    
     const chatBox = document.getElementById('chat-box');
     const userMessage = document.createElement('div');
     userMessage.className = 'message user-message';
     userMessage.textContent = userInput;
     chatBox.appendChild(userMessage);
 
-    
     currentChat.push({ type: 'user-message', text: userInput });
     localStorage.setItem('currentChat', JSON.stringify(currentChat));
 
-    
     document.getElementById('user-input').disabled = true;
     const thinkingMessage = document.createElement('div');
     thinkingMessage.className = 'message thinking shimmer';
@@ -94,34 +105,76 @@ async function sendMessage() {
     chatBox.appendChild(thinkingMessage);
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    const response = await fetch('/message', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message: userInput })
-    });
+    const actionButton = document.getElementById('action-button');
+    actionButton.innerHTML = '<i class="fa-solid fa-square"></i>';
+    actionButton.onclick = stopAI;
 
-    const data = await response.json();
+    abortController = new AbortController();
+    aiThinking = true;
 
-    
-    document.getElementById('thinking').remove();
-    document.getElementById('user-input').disabled = false;
-    document.getElementById('user-input').focus();
+    try {
+        const response = await fetch('/message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: userInput }),
+            signal: abortController.signal
+        });
 
-    
-    const aiMessage = document.createElement('div');
-    aiMessage.className = 'message ai-message';
-    aiMessage.innerHTML = data.response;
-    chatBox.appendChild(aiMessage);
+        const data = await response.json();
 
-    
-    currentChat.push({ type: 'ai-message', text: data.response });
-    localStorage.setItem('currentChat', JSON.stringify(currentChat));
+        document.getElementById('thinking').remove();
+        document.getElementById('user-input').disabled = false;
+        document.getElementById('user-input').focus();
 
-    
-    chatBox.scrollTop = chatBox.scrollHeight;
+        actionButton.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+        actionButton.onclick = sendMessage;
+
+        const aiMessage = document.createElement('div');
+        aiMessage.className = 'message ai-message';
+        aiMessage.innerHTML = data.response;
+        chatBox.appendChild(aiMessage);
+
+        currentChat.push({ type: 'ai-message', text: data.response });
+        localStorage.setItem('currentChat', JSON.stringify(currentChat));
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+        aiThinking = false;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('AI thinking stopped by user.');
+            document.getElementById('thinking').remove();
+            document.getElementById('user-input').disabled = false;
+            document.getElementById('user-input').focus();
+
+            actionButton.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+            actionButton.onclick = sendMessage;
+
+            aiThinking = false;
+        } else {
+            console.error('An error occurred:', error);
+        }
+    }
 }
 
+async function stopAI() {
+    if (aiThinking && abortController) {
+        abortController.abort();
+    }
+
+    try {
+        await fetch('/stop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('AI process stopped.');
+    } catch (error) {
+        console.error('Failed to stop AI process:', error);
+    }
+}
 
 displayChatHistory();

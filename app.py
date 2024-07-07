@@ -30,30 +30,38 @@ chat_model_name = "microsoft/DialoGPT-medium"
 chat_model = AutoModelForCausalLM.from_pretrained(chat_model_name).to(device)
 chat_tokenizer = AutoTokenizer.from_pretrained(chat_model_name)
 
-
 intent_model = BertForSequenceClassification.from_pretrained("fine_tuned_bert").to(
     device
 )
 intent_tokenizer = BertTokenizer.from_pretrained("fine_tuned_bert")
 
-
 intents = ["generate image", "chat"]
 encoder = LabelEncoder()
 encoder.fit(intents)
-
 
 model_id = "CompVis/stable-diffusion-v1-4"
 image_pipe = StableDiffusionPipeline.from_pretrained(model_id).to(device)
 
 
+ai_processing = False
+
+
 def generate_image(prompt):
+    global ai_processing
+    ai_processing = True
+
     image_path = f"static/{secure_filename(prompt)}.png"
     image = image_pipe(prompt).images[0]
     image.save(image_path)
+
+    ai_processing = False
     return image_path
 
 
 def generate_chat_response(prompt, chat_history_ids=None):
+    global ai_processing
+    ai_processing = True
+
     new_input_ids = chat_tokenizer.encode(
         prompt + chat_tokenizer.eos_token, return_tensors="pt"
     ).to(device)
@@ -68,6 +76,8 @@ def generate_chat_response(prompt, chat_history_ids=None):
     response = chat_tokenizer.decode(
         chat_history_ids[:, bot_input_ids.shape[-1] :][0], skip_special_tokens=True
     )
+
+    ai_processing = False
     return response, chat_history_ids
 
 
@@ -104,12 +114,20 @@ def handle_message():
             return jsonify(
                 {"response": "Please provide a prompt for the image generation."}
             )
-
     else:
         logging.debug(f"Chat prompt: {user_input}")
         response, _ = generate_chat_response(user_input)
         logging.debug(f"Chat response: {response}")
         return jsonify({"response": response})
+
+
+@app.route("/stop", methods=["POST"])
+def stop():
+    global ai_processing
+    if ai_processing:
+        ai_processing = False
+        return jsonify({"response": "AI process stopped."})
+    return jsonify({"response": "No AI process to stop."})
 
 
 def classify_intent(user_input):

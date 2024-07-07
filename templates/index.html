@@ -9,23 +9,27 @@
 </head>
 <body>
     <div class="sidebar" id="sidebar">
-        <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
         <div class="sidebar-content">
             <div id="chat-history"></div>
         </div>
     </div>
     <div class="main-content">
         <div class="toolbar">
-            <h1>Chatbot</h1>
+            <div class="toolbar-left">
+                <button class="sidebar-toggle" onclick="toggleSidebar()">
+                    <img width="25" height="25" src="https://img.icons8.com/fluency-systems-regular/48/show-left-side-panel.png" alt="show-left-side-panel"/>
+                </button>
+                <h1>Chatbot</h1>
+            </div>
             <button class="new-chat-icon" onclick="newChat()">
-                <i class="fa-solid fa-pen-to-square"></i>
+                <i class="fa-regular fa-pen-to-square"></i>
             </button>
         </div>
         <div class="chat-box" id="chat-box">
         </div>
         <div class="input-box">
-            <input type="text" id="user-input" placeholder="Type your message...">
-            <button onclick="sendMessage()">Send</button>
+            <input type="text" id="user-input" placeholder="Ask anything...">
+            <button id="action-button" onclick="sendMessage()"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
